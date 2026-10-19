@@ -1,0 +1,402 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>为什么非得用双线性变换 · 能听能拖的 IIR 映射</title>
+<link rel="stylesheet" href="assets/katex/katex.min.css">
+<style>
+  :root{
+    --ink:#1d2430; --muted:#5c6b7d; --line:#e3e7ee; --bg:#fbfaf7;
+    --card:#ffffff; --accent:#0f766e; --accent-2:#b45309; --warn:#b42318;
+    --imp:#d97706; --fwd:#dc2626; --bwd:#7c3aed; --bil:#0f766e;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Microsoft YaHei","PingFang SC","Segoe UI",system-ui,sans-serif;
+    line-height:1.75; font-size:16px;
+  }
+  main{max-width:1180px; margin:0 auto; padding:0 22px 90px}
+  header{
+    background:linear-gradient(135deg,#0f766e 0%,#115e59 45%,#134e4a 100%);
+    color:#f0fdfa; padding:52px 22px 44px; margin-bottom:38px;
+    border-bottom:6px solid #b45309;
+  }
+  header .inner{max-width:1180px; margin:0 auto}
+  header h1{margin:0 0 10px; font-size:34px; letter-spacing:.5px; line-height:1.3}
+  header p{margin:0; color:#ccfbf1; font-size:16.5px}
+  .jump{margin-top:20px; display:flex; gap:10px; flex-wrap:wrap}
+  .jump a{
+    color:#f0fdfa; text-decoration:none; border:1px solid rgba(255,255,255,.45);
+    padding:6px 14px; border-radius:999px; font-size:14px;
+  }
+  .jump a:hover{background:rgba(255,255,255,.14)}
+  section{margin:0 0 54px}
+  h2{
+    font-size:23px; margin:0 0 6px; display:flex; align-items:center; gap:12px;
+    border-bottom:2px solid var(--line); padding-bottom:10px;
+  }
+  h2 .no{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:34px; height:34px; border-radius:10px; background:var(--accent);
+    color:#fff; font-size:17px; flex:none;
+  }
+  h3{font-size:17.5px; margin:0 0 8px}
+  .lede{color:var(--muted); margin:12px 0 22px; font-size:15.5px}
+  .lede b{color:var(--ink)}
+
+  .cards{display:grid; grid-template-columns:repeat(2,1fr); gap:20px}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:16px 16px 12px; box-shadow:0 1px 2px rgba(16,24,40,.04);
+  }
+  .card .tag{
+    display:inline-block; font-size:12.5px; padding:1px 9px; border-radius:999px;
+    background:#f1f5f9; color:#475569; margin-bottom:8px; letter-spacing:.3px;
+  }
+  .card .tag.hot{background:#fef3c7; color:#92400e}
+  .card .tag.cool{background:#ccfbf1; color:#115e59}
+  .card audio{width:100%; margin:6px 0 10px; height:38px}
+  .card img{width:100%; border-radius:8px; border:1px solid var(--line); display:block}
+  .card p{margin:10px 0 0; font-size:14.4px; color:#3d4a5a}
+  .card p b{color:var(--ink)}
+
+  .panel{
+    display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start;
+    background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px;
+  }
+  .plotbox h4{margin:0 0 6px; font-size:14px; color:var(--muted); font-weight:600; letter-spacing:.3px}
+  canvas{width:100%; display:block; border-radius:10px; background:#fdfdfb; border:1px solid var(--line); touch-action:none}
+  #sPlane{cursor:crosshair}
+  .controls{margin-top:16px; display:flex; flex-wrap:wrap; gap:16px; align-items:center; font-size:14px; color:#3d4a5a}
+  .controls label{display:flex; align-items:center; gap:8px}
+  .controls input[type=range]{width:150px; accent-color:var(--accent)}
+  .controls .chk{display:flex; align-items:center; gap:6px}
+  .pill{
+    border:1px solid var(--line); background:#fff; border-radius:999px; padding:4px 12px;
+    font-size:13px; cursor:pointer; color:#334155;
+  }
+  .pill:hover{border-color:var(--accent); color:var(--accent)}
+  .readout{margin-top:14px; font-size:13.6px; color:#334155}
+  .readout code{background:#f1f5f9; border-radius:5px; padding:1px 6px; font-size:12.8px}
+
+  table{width:100%; border-collapse:collapse; margin-top:16px; font-size:14px}
+  th,td{border-bottom:1px solid var(--line); padding:9px 10px; text-align:left}
+  th{background:#f8fafc; font-weight:600; color:#334155; font-size:13.4px}
+  td.num{font-variant-numeric:tabular-nums}
+  .ok{color:#0f766e; font-weight:600}
+  .bad{color:#b42318; font-weight:600}
+
+  .figs{display:grid; grid-template-columns:1fr; gap:26px}
+  figure{margin:0; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px}
+  figure img{width:100%; border-radius:8px; display:block}
+  figcaption{margin-top:10px; font-size:14.2px; color:var(--muted)}
+  figcaption b{color:var(--ink)}
+
+  .note{
+    border-left:4px solid var(--accent-2); background:#fffbeb; border-radius:0 10px 10px 0;
+    padding:14px 18px; margin:20px 0; font-size:14.8px;
+  }
+  .note strong{color:#92400e}
+  .danger{border-left-color:var(--warn); background:#fef2f2}
+  .danger strong{color:#991b1b}
+  .steps{counter-reset:s; list-style:none; padding:0; margin:14px 0}
+  .steps li{
+    position:relative; padding:10px 0 10px 46px; border-bottom:1px dashed var(--line);
+    font-size:15px;
+  }
+  .steps li::before{
+    counter-increment:s; content:counter(s);
+    position:absolute; left:0; top:8px; width:30px; height:30px; border-radius:50%;
+    background:#e6fffb; color:#0f766e; display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:14px; border:1px solid #99f6e4;
+  }
+  a{color:var(--accent)}
+  .kbd{font-family:Consolas,monospace; background:#f1f5f9; padding:1px 6px; border-radius:5px; font-size:13px}
+  footer{color:var(--muted); font-size:13.5px; border-top:1px solid var(--line); padding-top:18px}
+  @media (max-width:900px){
+    .cards,.panel{grid-template-columns:1fr}
+    header h1{font-size:26px}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="inner">
+    <h1>为什么非得用双线性变换？</h1>
+    <p>能听（混叠到底什么味道）、能拖（极点被搬到哪）、能看（滤波器频谱怎么歪）—— 一套自己动手的演示。</p>
+    <div class="jump">
+      <a href="#listen">① 听：混叠</a>
+      <a href="#map">② 拖：s→z 映射</a>
+      <a href="#resp">③ 调：滤波器频谱</a>
+      <a href="#figs">④ 看图</a>
+      <a href="#end">⑤ 结论与更正</a>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<!-- ============================================================ 1 听 -->
+<section id="listen">
+  <h2><span class="no">1</span>先听：混叠不是「变闷」，是「变假」</h2>
+  <p class="lede">
+    下面 7 段音频都是 <b>44.1 kHz 播放</b>，唯一的变量是「采样前有没有抗混叠低通」。
+    每张卡片上面的白线是波形，下面是<b>时频谱</b>（横轴时间、纵轴频率、亮度=能量）。
+    时频谱里能直接看到：一个单纯的「上行滑音」是怎么被折成「上行再倒回来」的。
+  </p>
+
+  <h3 style="margin:26px 0 12px">A 组：扫频（把「频率轴被折叠」听成一条滑音）</h3>
+  <div class="cards">
+
+    <div class="card">
+      <span class="tag">A1 · 原声</span>
+      <h3>200 Hz → 7.6 kHz，6 秒</h3>
+      <audio controls preload="none" src="audio/A1_扫频_原声.wav"></audio>
+      <img src="img/audio/A1_扫频_原声.png" alt="A1 波形与时频谱">
+      <p>44.1 kHz 直接合成。听到的是一条<b>一路向上</b>的警笛声，时频谱上是笔直的斜线。</p>
+    </div>
+
+    <div class="card">
+      <span class="tag hot">A2 · 8 kHz 采样、没有抗混叠</span>
+      <h3>同一个扫频，过 4 kHz 后音高「掉头」</h3>
+      <audio controls preload="none" src="audio/A2_扫频_8k采样_无抗混叠.wav"></audio>
+      <img src="img/audio/A2_扫频_8k采样_无抗混叠.png" alt="A2 波形与时频谱">
+      <p><b>注意 3 秒处</b>：声音升到 4 kHz 后突然往下滑。信号并没有降调，是 4 kHz 以上的成分被折到了 4 kHz 以下（8 kHz − f）。时频谱里的黄色虚线就是这条「镜像线」。</p>
+    </div>
+
+    <div class="card">
+      <span class="tag cool">A3 · 先低通再 8 kHz 采样</span>
+      <h3>正规 ADC：3.4 kHz 以上被掐死</h3>
+      <audio controls preload="none" src="audio/A3_扫频_先低通再8k采样.wav"></audio>
+      <img src="img/audio/A3_扫频_先低通再8k采样.png" alt="A3 波形与时频谱">
+      <p>声音升到 3.3 kHz 左右就「断了」，之后一片安静——<b>没有掉头</b>。代价是高频没了，但换来的是：没混叠。这就是为什么抗混叠滤波器必须放在 ADC 前面。</p>
+    </div>
+
+    <div class="card">
+      <span class="tag hot">B1 · 纯音骗局</span>
+      <h3>6 kHz 采样后听起来像 2 kHz</h3>
+      <audio controls preload="none" src="audio/B1_纯音_6k真身_采样后_2k真身.wav"></audio>
+      <img src="img/audio/B1_纯音_6k真身_采样后_2k真身.png" alt="B1 波形与时频谱">
+      <p>三段各 0.9 秒：① 真的 6 kHz　② 6 kHz 过 8 kHz 采样　③ 真的 2 kHz。<b>②和③在耳朵里一模一样</b>，因为 8000 − 6000 = 2000。采样之后，你听到的频率可以是假的。</p>
+    </div>
+  </div>
+
+  <h3 style="margin:30px 0 12px">C 组：同一段旋律，采样率越低越「电音」</h3>
+  <div class="cards">
+    <div class="card">
+      <span class="tag">C1 · 原声（14 次谐波）</span>
+      <h3>小星星，听起来是「乐器」</h3>
+      <audio controls preload="none" src="audio/C1_星星_原声.wav"></audio>
+      <img src="img/audio/C1_星星_原声.png" alt="C1 波形与时频谱">
+      <p>每个音的谐波都严格成整数倍（262, 524, 786, …），所以耳朵判它是<b>一个音</b>。</p>
+    </div>
+
+    <div class="card">
+      <span class="tag hot">C2 · 2.6 kHz 采样</span>
+      <h3>轻电音：金属感、合唱感</h3>
+      <audio controls preload="none" src="audio/C2_星星_2.6k采样_电音.wav"></audio>
+      <img src="img/audio/C2_星星_2.6k采样_电音.png" alt="C2 波形与时频谱">
+      <p>1.3 kHz 以上的谐波全折叠。5 次谐波 1308 Hz 折到 1292 Hz，与原位置只差 16 Hz → 一个缓慢的<b>拍频颤音</b>；更高次谐波直接插到谐波之间，变成噪音性的金属感。</p>
+    </div>
+
+    <div class="card">
+      <span class="tag hot">C3 · 1.6 kHz 采样</span>
+      <h3>重电音：8-bit 破碎感</h3>
+      <audio controls preload="none" src="audio/C3_星星_1.6k采样_重电音.wav"></audio>
+      <img src="img/audio/C3_星星_1.6k采样_重电音.png" alt="C3 波形与时频谱">
+      <p>Nyquist 只剩 800 Hz，连 3 次谐波（786 Hz）都保不住。你听到的低频全是折回来的假分音——这就是老游戏机 / 对讲机那种「电音」。</p>
+    </div>
+
+    <div class="card" style="display:flex;align-items:center;background:#f8fafc">
+      <p style="margin:0;font-size:14.5px;color:#475569">
+        <b>听不出来？</b> 戴耳机、把音量调到能听清 A1 的程度，先听 A1 再听 A2，<b>盯住第 3 秒</b>。
+        C 组建议先听 C1，再听 C2 —— 同一条旋律，区别只在「采样率」。
+        <br><br>
+        这些 wav 的生成方式是「理想采样 + FFT 带限重建」，等价于「没有抗混叠滤波的 ADC + 理想 DAC」，所以听到的就是混叠本身，没有额外的采样保持镜像。脚本见 <span class="kbd">py/make_audio.py</span>。
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ 2 拖 -->
+<section id="map">
+  <h2><span class="no">2</span>再拖：一个极点被四种方法搬到哪</h2>
+  <p class="lede">
+    左图是 s 平面：横轴 $\sigma$（衰减/增长），纵轴 $j\omega$（模拟频率）。
+    左边的<b>绿星</b>可以拖，也可以直接点一下换个位置。
+    右图是 z 平面：<b>绿点</b>是模拟稳定区（$\sigma<0$）被搬过去的样子，<b>红点</b>是模拟不稳定区。
+    判据只有一句：<b>绿点跑到单位圆外 = 模拟稳定、数字不稳定</b>。
+  </p>
+
+  <div class="panel">
+    <div class="plotbox">
+      <h4>s 平面（模拟域）· 拖这颗星</h4>
+      <canvas id="sPlane" height="420"></canvas>
+    </div>
+    <div class="plotbox">
+      <h4>z 平面（数字域）· 四种映射的落点</h4>
+      <canvas id="zPlane" height="420"></canvas>
+    </div>
+  </div>
+
+  <div class="controls">
+    <label>着色区域：
+      <select id="focusSel" style="padding:4px 8px;border-radius:8px;border:1px solid #d8dee9">
+        <option value="bil">双线性</option>
+        <option value="imp">脉冲响应不变</option>
+        <option value="fwd">前向差分</option>
+        <option value="bwd">后向差分</option>
+      </select>
+    </label>
+    <label>T = <input id="tslider" type="range" min="0.2" max="3" step="0.05" value="1"><span id="tval" style="width:38px;display:inline-block">1.00</span></label>
+    <button class="pill" data-preset="-0.4,1.2">稳定极点</button>
+    <button class="pill" data-preset="0.25,1.4">不稳定极点</button>
+    <button class="pill" data-preset="0,2.6">正好在虚轴上</button>
+    <button class="pill" data-preset="-1.2,0">实轴极点</button>
+  </div>
+
+  <div class="readout" id="readout"></div>
+
+  <table id="mapTable">
+    <thead>
+      <tr><th style="width:20%">方法</th><th style="width:26%">映射式</th><th style="width:26%">极点落到</th><th>|z| 与判定</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <div class="note">
+    <strong>四点结论（拖一圈就明白了）：</strong>
+    ① 双线性把 <b>整个左半平面刚好塞满单位圆</b>，绿点一个都出不去，红点一个都进不来；
+    ② 脉冲响应不变也是「稳定进圆内」，但它<b>一圈圈绕</b>（$\omega T$ 超过 $\pi$ 就叠在一起）→ 混叠；
+    ③ <b>前向差分</b>最坑：$\sigma<0$ 的绿点有 85% 落到圆外 → 模拟稳定、数字发散；
+    ④ <b>后向差分</b>虽然稳定，但它只把左半平面塞进 $|z-\tfrac12|<\tfrac12$ 的小圆里，
+    整条 $j\omega$ 轴被压成一个小圆 —— 高频根本表示不出来。
+  </div>
+</section>
+
+<!-- ============================================================ 3 滤波器频谱 -->
+<section id="resp">
+  <h2><span class="no">3</span>调一下：预扭曲到底把什么钉回去了</h2>
+  <p class="lede">
+    这是一个 4 阶 Butterworth 低通经双线性变换后的幅频响应。
+    拖动 $\Omega_p$（数字截止频率）、改阶数 $n$，看曲线怎么动。
+    然后<b>取消勾选「预扭曲」</b>：这相当于设计时忘了 $\omega=\frac{2}{T}\tan\frac{\Omega}{2}$，
+    直接把数字指标当模拟指标用 —— 截止频率立刻跑偏，越靠近 $\pi$ 跑得越狠。
+  </p>
+
+  <div class="panel" style="grid-template-columns:1fr">
+    <div class="plotbox">
+      <canvas id="respCanvas" height="360"></canvas>
+    </div>
+  </div>
+
+  <div class="controls">
+    <label>$\Omega_p$ = <input id="opSlider" type="range" min="0.05" max="0.62" step="0.005" value="0.45"><span id="opVal" style="width:52px;display:inline-block">0.45π</span></label>
+    <label>阶数 n = <input id="nSlider" type="range" min="1" max="8" step="1" value="4"><span id="nVal" style="width:20px;display:inline-block">4</span></label>
+    <label class="chk"><input id="prewarpChk" type="checkbox" checked> 用预扭曲</label>
+    <label class="chk"><input id="showNaiveChk" type="checkbox" checked> 同时显示「忘预扭曲」</label>
+  </div>
+
+  <div class="readout" id="respReadout"></div>
+
+  <div class="note">
+    <strong>一句话：</strong>
+    双线性的畸变是「频率轴被压缩」，而预扭曲就是<b>先按 $\omega_p=\frac{2}{T}\tan\frac{\Omega_p}{2}$ 把指标换算到模拟域</b>，
+    设计完再压回来，于是数字域的截止点刚好落在你要的 $\Omega_p$ 上。
+    低频处 $\tan$ 近似线性，忘不忘差别不大（差 0.6 dB）；到了 $0.4\pi$ 以上，忘了就直接砍掉十几 dB 通带。
+  </div>
+</section>
+
+<!-- ============================================================ 4 图 -->
+<section id="figs">
+  <h2><span class="no">4</span>六张图，把「为什么是双线性」钉死</h2>
+  <div class="figs">
+
+    <figure>
+      <img src="img/fig1_四种映射_LHP去哪了.png" alt="四种映射把左半平面搬到哪">
+      <figcaption><b>图 1 · 稳定区去哪了。</b>每个小图都是 z 平面：黑虚线是单位圆，绿点来自 $\sigma<0$（模拟稳定），红点来自 $\sigma\ge0$，蓝线是 $j\omega$ 轴的去向。
+      只有双线性让绿点<b>刚好填满</b>单位圆；前向差分有 85% 的绿点跑到圆外。</figcaption>
+    </figure>
+
+    <figure>
+      <img src="img/fig2_频率轴畸变与预扭曲.png" alt="频率轴映射曲线与预扭曲">
+      <figcaption><b>图 2 · 畸变与预扭曲。</b>(a) 三条频率轴映射曲线：双线性是 $\tan$（越靠近 $\pi$ 压得越狠），脉冲响应不变是线性（但会折返），差分法在 $\pi/2$ 就掉头。
+      (b)(c) 同一套指标、同一个 Butterworth 原型，「预扭曲 / 忘预扭曲」两次设计的幅频对比 —— 低频差别只有 0.6 dB，高频（$0.42\pi$）通带直接被砍掉 16 dB。</figcaption>
+    </figure>
+
+    <figure>
+      <img src="img/fig3_谐波折叠_电音从哪来.png" alt="谐波折叠示意">
+      <figcaption><b>图 3 · 电音从哪来。</b>上：采样前谐波严格等间距。下：2.6 kHz 采样后，折叠出来的分音插在谐波之间（橙线不再落在灰点线上）。
+      耳朵靠「谐波成整数倍」判断乐音，间距一乱就是金属感、走音感。</figcaption>
+    </figure>
+
+    <figure>
+      <img src="img/fig5_时频谱_扫频折叠.png" alt="扫频时频谱的折返">
+      <figcaption><b>图 4 · 折返长什么样。</b>左：原声，一条上行斜线。右：8 kHz 采样后，斜线在 4 kHz 处<b>折成镜像</b>往下走 —— 这就是 A2 里听到的「音高掉头」。</figcaption>
+    </figure>
+
+    <figure>
+      <img src="img/fig6_抗混叠低通响应.png" alt="抗混叠滤波器响应">
+      <figcaption><b>图 5 · 抗混叠滤波器长什么样。</b>A3 里用的 FIR：3.4 kHz 通带边缘、4 kHz 起阻带、深于 −90 dB，相频是直线（线性相位，群延迟 511 点）。
+      正是它把 4 kHz 以上的东西<b>在采样前</b>掐死，所以 A3 没有折返。</figcaption>
+    </figure>
+
+    <figure>
+      <img src="img/fig7_双线性vs脉冲响应不变.png" alt="双线性与脉冲响应不变的数字滤波器">
+      <figcaption><b>图 6 · 同一只模拟原型，两种数字滤波器。</b>脉冲响应不变的阻带只压到 −33 dB 就被混叠「托住」（再往下都是折回来的成分）；双线性的阻带一路往下走。
+      零极点图里两者都把极点关进单位圆，但双线性额外把 4 个零点全放到 $z=-1$。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ============================================================ 5 结论 -->
+<section id="end">
+  <h2><span class="no">5</span>结论：为什么非得「绕个弯」</h2>
+
+  <p class="lede">
+    因为别的映射要么<b>混叠</b>（脉冲响应不变：高频折回来）、要么<b>不稳定</b>（前向差分：极点跑出单位圆）、要么<b>把高频挤死</b>（后向差分：整条 $j\omega$ 轴只剩一个小圆）。
+    双线性的代价只是「频率轴被拉伸」，而拉伸是<b>可以提前用预扭曲补掉</b>的；混叠和不稳定补不掉。
+  </p>
+
+  <ol class="steps">
+    <li><b>预扭曲</b>：把数字指标 $\Omega_p,\Omega_s$ 换成模拟指标 $\omega=\frac{2}{T}\tan\frac{\Omega}{2}$。</li>
+    <li><b>求阶数</b>：用换算后的 $\omega_s/\omega_p$ 套公式，得到 $n$ 和 $\omega_c$。</li>
+    <li><b>反归一化</b>：把归一化原型的 $s/\omega_c$ 换成 $s$，得 $H_a(s)$。</li>
+    <li><b>双线性代入</b>：$s=\frac{2}{T}\frac{z-1}{z+1}$，整理成 $z^{-1}$ 的多项式，得 $H(z)$。</li>
+    <li><b>验算</b>：代 $z=1$（$\Omega=0$）看直流增益，代 $z=-1$（$\Omega=\pi$）看高频衰减，再核对 $\Omega_s$ 处是否够 $A_s$。</li>
+  </ol>
+
+  <div class="note danger">
+    <strong>更正一处：我上一轮说错了一句。</strong>
+    上一轮说「反向差分法（$s=\frac{1-z^{-1}}{T}$）稳定性不保」——<b>这是错的</b>。
+    真正的结论是：
+    <br>· <b>前向差分</b> $s=\frac{z-1}{T}$：左半平面被搬到 $|z-1|<1$ 的圆盘，<b>有一部分在单位圆外 → 可能不稳定</b>（图 1 右上，绿点 85% 越界）。
+    <br>· <b>后向差分</b> $s=\frac{1-z^{-1}}{T}$：左半平面被搬到 $|z-\tfrac12|<\tfrac12$，<b>严格在单位圆内 → 一定稳定</b>（图 1 左下）。
+    它的毛病不是不稳定，而是<b>把高频挤没了</b>：$j\omega$ 轴被压成半径 $\tfrac12$ 的小圆，$\Omega$ 靠近 $\pi$ 的地方根本没有对应的模拟频率。
+    <br>考试写「前向差分不稳定、后向差分稳定但频率畸变严重」才是稳的。
+  </div>
+
+  <div class="note">
+    <strong>考试口径（T11 双线性 IIR 设计）</strong>：
+    五步就是上面那五步，判分点通常是「预扭曲式子对不对」「阶数公式」「代入后整理成 $z^{-1}$ 形式」「$\Omega_s$ 处验算」。
+    对应模板见 <span class="kbd">02_手册/05_题型手册_下_频域与滤波器设计.md</span> 的 T11 一节。
+  </div>
+</section>
+
+<footer>
+  本页所有音频、图片都是本机生成的（Python + numpy/scipy/matplotlib），脚本在 <span class="kbd">py/</span>；
+  想看 MATLAB 版本见 <span class="kbd">matlab/</span>。图与音频可以随便改参数重跑：<span class="kbd">python py/make_audio.py</span> → <span class="kbd">python py/make_figs.py</span>。
+</footer>
+
+</main>
+
+<script defer src="assets/katex/katex.min.js"></script>
+<script defer src="assets/katex/auto-render.min.js"
+        onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
